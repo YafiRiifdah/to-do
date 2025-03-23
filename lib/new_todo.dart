@@ -66,13 +66,45 @@ class _NewTodoScreenState extends State<NewTodoScreen> with SingleTickerProvider
     super.dispose();
   }
 
-  // Fungsi untuk mendapatkan warna berdasarkan prioritas
+  // Fungsi untuk mendapatkan warna berdasarkan prioritas sesuai spesifikasi
   String _getCardColor() {
-    // Ubah output warna menjadi kuning untuk merah dan biru
-    if (isUrgentlySelected || isImportantSelected || isNotUrgentlySelected || isNotImportantSelected) {
-      return "#FFC107"; // Kuning amber yang lebih cerah untuk semua pilihan prioritas
-    } else {
-      return "#808080"; // Abu-abu default jika tidak ada prioritas yang dipilih
+    // Jika user memilih "Urgently" DAN "Important" - Warna MERAH
+    if (isUrgentlySelected && isImportantSelected) {
+      print("Kombinasi Urgently & Important -> MERAH");
+      return "#FC0101"; // Merah
+    } 
+    // Jika user memilih "Not Urgently" DAN "Not Important" - Warna BIRU
+    else if (isNotUrgentlySelected && isNotImportantSelected) {
+      print("Kombinasi Not Urgently & Not Important -> BIRU");
+      return "#007BFF"; // Biru
+    }
+    // Jika user memilih "Urgently" dan "Not Important" ATAU "Not Urgently" dan "Important" - Warna KUNING
+    else if ((isUrgentlySelected && isNotImportantSelected) || 
+             (isNotUrgentlySelected && isImportantSelected)) {
+      print("Kombinasi campuran -> KUNING");
+      return "#FFC107"; // Kuning
+    }
+    // Jika hanya satu yang dipilih atau tidak ada yang dipilih
+    else if (isUrgentlySelected) {
+      print("Hanya Urgently -> MERAH");
+      return "#FC0101"; // Merah
+    }
+    else if (isImportantSelected) {
+      print("Hanya Important -> MERAH");
+      return "#FC0101"; // Merah
+    }
+    else if (isNotUrgentlySelected) {
+      print("Hanya Not Urgently -> BIRU");
+      return "#007BFF"; // Biru
+    }
+    else if (isNotImportantSelected) {
+      print("Hanya Not Important -> BIRU");
+      return "#007BFF"; // Biru
+    }
+    // Default jika tidak ada yang dipilih - Warna ABU-ABU
+    else {
+      print("Tidak ada prioritas dipilih -> ABU-ABU");
+      return "#808080"; // Abu-abu
     }
   }
 
@@ -115,6 +147,9 @@ class _NewTodoScreenState extends State<NewTodoScreen> with SingleTickerProvider
                       taskCount: 0, // Default 0 task
                       color: _getCardColor(),
                     );
+                    
+                    // Debug: tampilkan warna yang digunakan
+                    print("Warna yang dipilih: ${newTodo.color}");
                     
                     // Kembali ke halaman sebelumnya dengan data baru
                     Navigator.pop(context, newTodo);

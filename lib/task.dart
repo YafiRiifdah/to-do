@@ -5,25 +5,32 @@ import 'add_task.dart';
 
 class TaskScreen extends StatefulWidget {
   final TodoItem todoItem;
+  final Function(TodoItem updatedTodo) onUpdate; // Callback untuk update TodoItem
 
-  const TaskScreen({Key? key, required this.todoItem}) : super(key: key);
+  const TaskScreen({
+    Key? key, 
+    required this.todoItem,
+    required this.onUpdate,
+  }) : super(key: key);
 
   @override
   State<TaskScreen> createState() => _TaskScreenState();
 }
 
 class _TaskScreenState extends State<TaskScreen> with SingleTickerProviderStateMixin {
-  // Daftar subtask (kosong pada awalnya)
-  final List<Map<String, dynamic>> _subtasks = [];
+  // Daftar subtask
+  late List<Map<String, dynamic>> _subtasks;
   
-  // Untuk animasi container - hilangkan kata kunci 'late'
-  AnimationController? _animationController;
-  Animation<Offset>? _slideAnimation;
+  // Untuk animasi container
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
-    // Inisialisasi secara langsung
+    // Inisialisasi daftar subtasks dari todoItem jika ada
+    _subtasks = widget.todoItem.tasks ?? [];
+    
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -33,106 +40,262 @@ class _TaskScreenState extends State<TaskScreen> with SingleTickerProviderStateM
       begin: const Offset(0, 1), // Mulai dari bawah layar
       end: Offset.zero, // Bergerak ke posisi asli
     ).animate(CurvedAnimation(
-      parent: _animationController!,
+      parent: _animationController,
       curve: Curves.easeOut,
     ));
     
     // Mulai animasi setelah build pertama selesai
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _animationController!.forward();
+      _animationController.forward();
     });
   }
 
   @override
   void dispose() {
-    _animationController?.dispose();
+    _animationController.dispose();
     super.dispose();
+  }
+
+  // Format tanggal untuk ditampilkan
+  String _formatDate(DateTime date) {
+    // Format manual tanpa package intl
+    final List<String> months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return "${months[date.month - 1]} ${date.day}, ${date.year}";
+  }
+
+  // Format time untuk ditampilkan
+  String _formatTime(TimeOfDay time) {
+    final int hour = time.hour > 12 ? time.hour - 12 : (time.hour == 0 ? 12 : time.hour);
+    final String minute = time.minute < 10 ? "0${time.minute}" : "${time.minute}";
+    final String period = time.period == DayPeriod.am ? "AM" : "PM";
+    return "$hour:$minute $period";
+  }
+
+  // Hitung persentase task yang selesai
+  double _calculateCompletionPercentage() {
+    if (_subtasks.isEmpty) return 0.0;
+    
+    int completedCount = _subtasks.where((task) => task['completed'] == true).length;
+    return completedCount / _subtasks.length;
+  }
+
+  // Check jika deadline task sudah terlewat
+  bool _isTaskOverdue(Map<String, dynamic> task) {
+    if (task['date'] == null) return false;
+    
+    final DateTime taskDate = task['date'] as DateTime;
+    TimeOfDay? taskTime = task['time'] as TimeOfDay?;
+    
+    final now = DateTime.now();
+    
+    // Jika tanggal saja sudah lewat, pasti overdue
+    if (taskDate.year < now.year || 
+        (taskDate.year == now.year && taskDate.month < now.month) ||
+        (taskDate.year == now.year && taskDate.month == now.month && taskDate.day < now.day)) {
+      return true;
+    }
+    
+    // Jika tanggal sama, periksa waktunya
+    if (taskDate.year == now.year && taskDate.month == now.month && taskDate.day == now.day) {
+      if (taskTime != null) {
+        final nowTimeOfDay = TimeOfDay.fromDateTime(now);
+        // Bandingkan jam dan menit
+        if (taskTime.hour < nowTimeOfDay.hour || 
+            (taskTime.hour == nowTimeOfDay.hour && taskTime.minute < nowTimeOfDay.minute)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  // Menghitung berapa hari tersisa atau terlewat
+  String _getTimeRemainingText(Map<String, dynamic> task) {
+    if (task['date'] == null) return "";
+    
+    final DateTime taskDate = task['date'] as DateTime;
+    final now = DateTime.now();
+    
+    // Bedakan antara hari ini, besok, dan tanggal lain
+    final difference = DateTime(taskDate.year, taskDate.month, taskDate.day)
+        .difference(DateTime(now.year, now.month, now.day)).inDays;
+    
+    if (difference < 0) {
+      final days = difference.abs();
+      return days == 1 ? "OVERDUE" : "OVERDUE";
+    } else if (difference == 0) {
+      return "TODAY";
+    } else if (difference == 1) {
+      return "TOMORROW";
+    } else {
+      return "DUE IN $difference DAYS";
+    }
+  }
+
+  // Update TodoItem dan kirim kembali ke parent
+  void _updateTodoItem() {
+    // Buat objek TodoItem baru dengan nilai yang diperbarui
+    final updatedTodo = TodoItem(
+      title: widget.todoItem.title,
+      isUrgent: widget.todoItem.isUrgent,
+      isImportant: widget.todoItem.isImportant,
+      taskCount: _subtasks.length, // Update jumlah task
+      color: widget.todoItem.color,
+      tasks: _subtasks, // Simpan daftar task
+    );
+    
+    // Panggil callback untuk update
+    widget.onUpdate(updatedTodo);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Konversi string hex ke color untuk header
-    final headerColor = Color(int.parse(widget.todoItem.color.replaceAll('#', '0xFF')));
+    // Konversi warna yang lebih aman
+    Color headerColor;
+    if (widget.todoItem.color == "#FC0101") { // Merah
+      headerColor = const Color(0xFFFC0101);
+    } else if (widget.todoItem.color == "#007BFF") { // Biru
+      headerColor = const Color(0xFF007BFF);
+    } else if (widget.todoItem.color == "#FFC107") { // Kuning
+      headerColor = const Color(0xFFFFC107);
+    } else { // Abu-abu atau default
+      headerColor = const Color(0xFF808080);
+    }
+    
     // Warna background aplikasi
     const backgroundColor = Color(0xFFF7F1FE);
+    final double completionPercentage = _calculateCompletionPercentage();
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Header berwarna dengan judul
-            Container(
-              width: double.infinity,
-              height: MediaQuery.of(context).size.height,
-              child: Column(
-                children: [
-                  // Header merah
-                  Container(
-                    width: double.infinity,
-                    color: headerColor,
-                    padding: const EdgeInsets.fromLTRB(0, 20, 0, 20), // Menghapus padding horizontal untuk ikon ke pojok
-                    child: Column(
-                      children: [
-                        // Bar atas dengan tombol kembali dan menu - dengan padding yang lebih sedikit
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 5),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              // Tombol X di pojok kiri - tanpa padding tambahan
-                              GestureDetector(
-                                onTap: () => Navigator.pop(context),
-                                child: const Icon(Icons.close, color: Colors.white, size: 28),
-                              ),
-                              // Tombol titik tiga di pojok kanan
-                              const Icon(Icons.more_horiz, color: Colors.white, size: 28),
-                            ],
+    return WillPopScope(
+      // Ketika user menavigasi kembali, update TodoItem
+      onWillPop: () async {
+        _updateTodoItem();
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // Header berwarna dengan judul
+              Container(
+                width: double.infinity,
+                height: MediaQuery.of(context).size.height,
+                child: Column(
+                  children: [
+                    // Header berwarna
+                    Container(
+                      width: double.infinity,
+                      color: headerColor,
+                      padding: const EdgeInsets.fromLTRB(0, 20, 0, 20),
+                      child: Column(
+                        children: [
+                          // Bar atas dengan tombol kembali dan menu
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Tombol X di pojok kiri
+                                GestureDetector(
+                                  onTap: () {
+                                    _updateTodoItem(); // Update sebelum pop
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Icon(Icons.close, color: Colors.white, size: 28),
+                                ),
+                                // Tombol titik tiga di pojok kanan
+                                const Icon(Icons.more_horiz, color: Colors.white, size: 28),
+                              ],
+                            ),
                           ),
-                        ),
-                        
-                        // Spasi untuk menempatkan judul di bagian tengah header
-                        const SizedBox(height: 30), // Mengurangi space agar judul naik ke atas
-                        
-                        // Judul Todo (di tengah)
-                        Text(
-                          widget.todoItem.title,
-                          style: GoogleFonts.poppins(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                          
+                          const SizedBox(height: 30),
+                          
+                          // Judul Todo (di tengah)
+                          Text(
+                            widget.todoItem.title,
+                            style: GoogleFonts.poppins(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        
-                        const SizedBox(height: 40), // Tetap mempertahankan space di bawah judul
-                      ],
+                          
+                          const SizedBox(height: 20),
+                          
+                          // Progress Bar
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(25, 0, 25, 0), // Kurangi padding atas
+                            child: Column(
+                              children: [
+                                // Linear Progress Indicator
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: LinearProgressIndicator(
+                                    value: completionPercentage,
+                                    backgroundColor: Colors.white.withOpacity(0.3),
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    minHeight: 10,
+                                  ),
+                                ),
+                                
+                                const SizedBox(height: 8),
+                                
+                                // Task count and percentage
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "${_subtasks.length} ${_subtasks.length == 1 ? 'task' : 'tasks'}",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      "${(completionPercentage * 100).toInt()}% Completed",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  
-                  // Area konten (hanya untuk warna background)
-                  Expanded(
-                    child: Container(
-                      color: backgroundColor,
+                    
+                    // Area konten (hanya untuk warna background)
+                    Expanded(
+                      child: Container(
+                        color: backgroundColor,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            
-            // Container yang bergerak ke atas seperti di new_todo.dart
-            if (_slideAnimation != null)
+              
+              // Container yang bergerak ke atas seperti di new_todo.dart
               Positioned(
-                top: 170, // Mempertahankan posisi container
+                top: 188, // Sesuaikan posisi container setelah progress bar
                 left: 0,
                 right: 0,
                 child: SlideTransition(
-                  position: _slideAnimation!,
+                  position: _slideAnimation,
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(16, 5, 16, 25), // Mengurangi padding atas menjadi 5
+                    padding: const EdgeInsets.fromLTRB(16, 5, 16, 25),
                     decoration: BoxDecoration(
-                      color: backgroundColor, // Menggunakan warna background yang sama
+                      color: backgroundColor,
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(20), 
                         topRight: Radius.circular(20),
@@ -147,17 +310,23 @@ class _TaskScreenState extends State<TaskScreen> with SingleTickerProviderStateM
                     ),
                     child: Column(
                       children: [
-                        // Menghilangkan space di atas tombol
-                        const SizedBox(height: 0), // Dihilangkan
+                        // Daftar subtask di atas tombol
+                        if (_subtasks.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10.0),
+                            child: Column(
+                              children: _subtasks.map((task) => _buildTaskItem(task)).toList(),
+                            ),
+                          ),
                         
-                        // Tombol "Add new Task..." dengan background dan ukuran yang lebih besar
+                        // Tombol "Add new Task..." dengan background
                         Container(
-                          width: double.infinity, // Memastikan tombol menggunakan lebar penuh
-                          height: 65, // Tinggi tombol yang lebih besar lagi (dari 55 menjadi 65)
+                          width: double.infinity,
+                          height: 65,
                           margin: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(6), // Sudut kurang melengkung
+                            borderRadius: BorderRadius.circular(15),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.05),
@@ -168,7 +337,9 @@ class _TaskScreenState extends State<TaskScreen> with SingleTickerProviderStateM
                           ),
                           child: Material(
                             color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(15),
                             child: InkWell(
+                              borderRadius: BorderRadius.circular(15),
                               onTap: () async {
                                 // Navigasi ke halaman AddTaskScreen
                                 final result = await Navigator.push(
@@ -181,24 +352,26 @@ class _TaskScreenState extends State<TaskScreen> with SingleTickerProviderStateM
                                   setState(() {
                                     _subtasks.add(result);
                                   });
+                                  
+                                  // Update TodoItem setelah menambahkan task
+                                  _updateTodoItem();
                                 }
                               },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                              child: Center(
                                 child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.add, 
-                                      color: Color(0xFF8D8D8D), // Warna ikon abu-abu
-                                      size: 23, // Ukuran ikon
+                                      color: Colors.blue.shade300,
+                                      size: 22,
                                     ),
-                                    const SizedBox(width: 15),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      'Add new Task...',
+                                      'Add New Task...',
                                       style: GoogleFonts.poppins(
-                                        fontSize: 15, // Font size
-                                        fontStyle: FontStyle.italic,
-                                        color: const Color(0xFF77A4F6),
+                                        fontSize: 16,
+                                        color: Colors.blue.shade300,
                                       ),
                                     ),
                                   ],
@@ -207,21 +380,13 @@ class _TaskScreenState extends State<TaskScreen> with SingleTickerProviderStateM
                             ),
                           ),
                         ),
-                        
-                        // Daftar subtask di bawah tombol
-                        if (_subtasks.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16.0),
-                            child: Column(
-                              children: _subtasks.map((task) => _buildTaskItem(task)).toList(),
-                            ),
-                          ),
                       ],
                     ),
                   ),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -229,35 +394,161 @@ class _TaskScreenState extends State<TaskScreen> with SingleTickerProviderStateM
 
   // Widget untuk menampilkan item task
   Widget _buildTaskItem(Map<String, dynamic> task) {
+    // Cek status overdue
+    final bool isOverdue = _isTaskOverdue(task);
+    final String timeText = _getTimeRemainingText(task);
+    
     return Container(
-      margin: const EdgeInsets.only(bottom: 8.0),
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 15.0),
+      margin: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Checkbox(
-            value: task['completed'] ?? false,
-            onChanged: (value) {
-              setState(() {
-                task['completed'] = value;
-              });
-            },
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              task['title'],
-              style: GoogleFonts.poppins(
-                decoration: task['completed'] == true
-                    ? TextDecoration.lineThrough
-                    : null,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Baris pertama dengan checkbox, judul task, dan status deadline
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Checkbox
+              Container(
+                width: 24,
+                height: 24,
+                margin: const EdgeInsets.only(top: 3),
+                child: Checkbox(
+                  value: task['completed'] ?? false,
+                  shape: const CircleBorder(),
+                  onChanged: (value) {
+                    setState(() {
+                      task['completed'] = value;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              
+              // Task title and notes
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Task title
+                    Text(
+                      task['title'] ?? '',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        decoration: task['completed'] == true
+                            ? TextDecoration.lineThrough
+                            : null,
+                        color: task['completed'] == true
+                            ? Colors.grey
+                            : Colors.black,
+                      ),
+                    ),
+                    
+                    // Notes jika ada
+                    if (task['notes'] != null && task['notes'].toString().isNotEmpty)
+                      Text(
+                        task['notes'],
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              
+              // Status deadline - ditampilkan secara horizontal dengan latar belakang sesuai status
+              if (timeText.isNotEmpty && !task['completed'])
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isOverdue ? Colors.red.shade100 : Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    timeText,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: isOverdue ? Colors.red : Colors.green,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          
+          // Baris kedua untuk deadline & reminder MENJALAR KE BAWAH (VERTIKAL)
+          if (task['date'] != null || task['time'] != null || task['reminder'] == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, left: 36.0),
+              child: Column(  // Menggunakan Column agar widget menjalar ke bawah
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Deadline dengan icon kalender
+                  if (task['date'] != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 6.0),  // Margin bawah
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,  // Minimalisasi ukuran row
+                        children: [
+                          const Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            task['time'] != null
+                                ? "${_formatDate(task['date'])}, ${_formatTime(task['time'])}"
+                                : _formatDate(task['date']),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  
+                  // Reminder dengan icon bell
+                  if (task['reminder'] == true)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,  // Minimalisasi ukuran row
+                        children: [
+                          const Icon(Icons.notifications_active, color: Colors.orange, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            task['time'] != null ? _formatTime(task['time']) : 'Reminder',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ),
-          ),
         ],
       ),
     );

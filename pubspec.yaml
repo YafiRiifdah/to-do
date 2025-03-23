@@ -60,6 +60,7 @@ flutter:
   uses-material-design: true
   
   assets:
+    - assets/kalender.png
     - assets/1.png
 
   # To add assets to your application, add an assets section, like this:
