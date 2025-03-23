@@ -231,7 +231,7 @@ class _TaskScreenState extends State<TaskScreen> with SingleTickerProviderStateM
                           
                           // Progress Bar
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(25, 0, 25, 0), // Kurangi padding atas
+                            padding: const EdgeInsets.fromLTRB(25, 0, 20, 0), // Kurangi padding atas
                             child: Column(
                               children: [
                                 // Linear Progress Indicator

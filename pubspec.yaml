@@ -35,6 +35,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  http: ^1.3.0
+  flutter_web_auth_2: ^4.1.0 
+  shared_preferences: ^2.5.2
+  flutter_svg: ^1.0.0
+  audioplayers: ^6.4.0
   google_fonts: ^6.1.0
   intl: ^0.18.0  # Menambahkan package Google Fonts untuk font Poppins
 
@@ -60,6 +65,14 @@ flutter:
   uses-material-design: true
   
   assets:
+    - assets/
+    - assets/get.png
+    - assets/logo.png
+    - assets/halaman1.png
+    - assets/halaman2.png
+    - assets/halaman3.png
+    - assets/logo_google.png
+    - assets/login.png
     - assets/kalender.png
     - assets/1.png
 
