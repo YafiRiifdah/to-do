@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'to_do.dart';
+import 'login_page.dart';
 
 // Custom PageRouteBuilder untuk animasi slide
 class SlidePageRoute extends PageRouteBuilder {
@@ -187,7 +189,7 @@ class _SlicingScreenState extends State<SlicingScreen> {
                       ),
                     ),
                     
-                    const SizedBox(height: 180),
+                    const SizedBox(height: 220),
                     
                     // Continue Button dengan shadow ungu yang lebih terlihat
                     Stack(
@@ -447,7 +449,8 @@ class _SlicingScreenState extends State<SlicingScreen> {
                     ),
                   ),
                   
-                  const SizedBox(height: 50), // Jarak yang lebih besar untuk menurunkan tombol
+                  // Meningkatkan nilai dari 50 menjadi 90 untuk menurunkan tombol
+                  const SizedBox(height: 90),
                   
                   // Continue Button dengan shadow
                   Stack(
@@ -608,7 +611,10 @@ class _SlicingScreenState extends State<SlicingScreen> {
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: () {
-                              // TODO: Navigasi ke halaman utama aplikasi
+                              // Navigasi ke halaman utama aplikasi (to_do.dart)
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(builder: (context) => TodoScreen()),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF007BFF), // Warna biru #007BFF
@@ -634,7 +640,10 @@ class _SlicingScreenState extends State<SlicingScreen> {
                         // Sign In link
                         InkWell(
                           onTap: () {
-                            // TODO: Navigasi ke halaman sign in
+                            // Navigasi ke halaman sign in (login_page.dart)
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (context) => LoginPage()),
+                            );
                           },
                           child: Text(
                             'Sign In',

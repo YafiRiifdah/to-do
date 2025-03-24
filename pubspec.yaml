@@ -66,6 +66,7 @@ flutter:
   
   assets:
     - assets/
+    - assets/login.png
     - assets/get.png
     - assets/logo.png
     - assets/halaman1.png

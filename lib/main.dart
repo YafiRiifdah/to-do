@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'start.dart';
 import 'slicing.dart'; // File yang terintegrasi dengan animasi slide
 import 'to_do.dart';
+import 'login_page.dart';
 
 void main() {
   runApp(const MyApp());

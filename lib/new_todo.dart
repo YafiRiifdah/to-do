@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'todo_model.dart';
 
 class NewTodoScreen extends StatefulWidget {
@@ -24,6 +27,13 @@ class _NewTodoScreenState extends State<NewTodoScreen> with SingleTickerProvider
   
   // Track if title is empty
   bool isTitleEmpty = true;
+  
+  // State untuk API
+  bool _isLoading = false;
+  String _errorMessage = '';
+  
+  // URL API - ganti dengan URL API Anda
+  final String _apiBaseUrl = 'https://api.tascaid.com/api/todos';
 
   @override
   void initState() {
@@ -64,6 +74,87 @@ class _NewTodoScreenState extends State<NewTodoScreen> with SingleTickerProvider
     _animationController.dispose();
     _titleController.dispose();
     super.dispose();
+  }
+
+  // Fungsi untuk mendapatkan token autentikasi
+  Future<String> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('auth_token') ?? '';
+  }
+
+  // Fungsi untuk menambahkan todo baru ke API
+  Future<void> _addTodoToApi(TodoItem todo) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+    
+    try {
+      final token = await _getToken();
+      
+      final response = await http.post(
+        Uri.parse('$_apiBaseUrl'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'title': todo.title,
+          'is_urgent': todo.isUrgent,
+          'is_important': todo.isImportant,
+          'color': todo.color,
+        }),
+      );
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      if (response.statusCode == 201) {
+        // Todo berhasil ditambahkan ke API
+        final responseData = json.decode(response.body);
+        
+        // Jika API mengembalikan data todo yang baru ditambahkan
+        if (responseData['data'] != null) {
+          final data = responseData['data'];
+          // Kembali ke halaman sebelumnya dengan data baru dari API
+          Navigator.pop(context, TodoItem(
+            title: data['title'],
+            isUrgent: data['is_urgent'] ?? todo.isUrgent,
+            isImportant: data['is_important'] ?? todo.isImportant,
+            taskCount: 0,
+            color: todo.color,
+          ));
+        } else {
+          // Kembali ke halaman sebelumnya dengan data input
+          Navigator.pop(context, todo);
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'Gagal menambahkan todo: ${response.statusCode}';
+        });
+        
+        // Tampilkan pesan error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_errorMessage)),
+        );
+        
+        print('Failed to add todo: ${response.statusCode}');
+        print('Response: ${response.body}');
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Error: $e';
+      });
+      
+      // Tampilkan pesan error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_errorMessage)),
+      );
+      
+      print('Error adding todo: $e');
+    }
   }
 
   // Fungsi untuk mendapatkan warna berdasarkan prioritas sesuai spesifikasi
@@ -136,36 +227,40 @@ class _NewTodoScreenState extends State<NewTodoScreen> with SingleTickerProvider
             child: Container(
               margin: const EdgeInsets.all(8),
               child: ElevatedButton(
-                onPressed: () {
-                  // Mengecek apakah judul sudah diisi
-                  if (_titleController.text.trim().isNotEmpty) {
-                    // Membuat objek TodoItem baru
-                    final newTodo = TodoItem(
-                      title: _titleController.text.trim(),
-                      isUrgent: isUrgentlySelected,
-                      isImportant: isImportantSelected,
-                      taskCount: 0, // Default 0 task
-                      color: _getCardColor(),
-                    );
-                    
-                    // Debug: tampilkan warna yang digunakan
-                    print("Warna yang dipilih: ${newTodo.color}");
-                    
-                    // Kembali ke halaman sebelumnya dengan data baru
-                    Navigator.pop(context, newTodo);
-                  } else {
-                    // Menampilkan pesan jika judul kosong
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter a title for your task'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
-                },
+                onPressed: _isLoading 
+                  ? null  // Nonaktifkan tombol saat loading
+                  : () {
+                    // Mengecek apakah judul sudah diisi
+                    if (_titleController.text.trim().isNotEmpty) {
+                      // Membuat objek TodoItem baru
+                      final newTodo = TodoItem(
+                        title: _titleController.text.trim(),
+                        isUrgent: isUrgentlySelected,
+                        isImportant: isImportantSelected,
+                        taskCount: 0, // Default 0 task
+                        color: _getCardColor(),
+                      );
+                      
+                      // Debug: tampilkan warna yang digunakan
+                      print("Warna yang dipilih: ${newTodo.color}");
+                      
+                      // Kirim todo baru ke API
+                      _addTodoToApi(newTodo);
+                    } else {
+                      // Menampilkan pesan jika judul kosong
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a title for your task'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
                 style: ElevatedButton.styleFrom(
                   // Ubah warna tombol berdasarkan kondisi teks input
-                  backgroundColor: isTitleEmpty ? Colors.grey.shade400 : Colors.green,
+                  backgroundColor: _isLoading 
+                    ? Colors.grey  // Warna saat loading
+                    : (isTitleEmpty ? Colors.grey.shade400 : Colors.green),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                   minimumSize: const Size(50, 26), // Tombol lebih kecil
@@ -173,14 +268,23 @@ class _NewTodoScreenState extends State<NewTodoScreen> with SingleTickerProvider
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
-                child: Text(
-                  'Add',
-                  style: GoogleFonts.poppins(
-                    color: Colors.white, // Warna font putih
-                    fontWeight: FontWeight.w500,
-                    fontSize: 12, // Ukuran font lebih kecil
-                  ),
-                ),
+                child: _isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(
+                      'Add',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white, // Warna font putih
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12, // Ukuran font lebih kecil
+                      ),
+                    ),
               ),
             ),
           ),
@@ -189,6 +293,21 @@ class _NewTodoScreenState extends State<NewTodoScreen> with SingleTickerProvider
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Pesan error jika ada
+          if (_errorMessage.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              color: Colors.red.shade100,
+              width: double.infinity,
+              child: Text(
+                _errorMessage,
+                style: GoogleFonts.poppins(
+                  color: Colors.red.shade800,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            
           // Input field untuk judul todo dengan TextField
           Center(
             child: Padding(
